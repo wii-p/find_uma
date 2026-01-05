@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>UMAむすこ 2026 - LEVEL UP & RANKING</title>
+    <style>
+        :root {
+            --bg-color: #000;
+            --text-main: #0f0;
+            --text-sub: #ff00ff;
+            --text-info: #0ff;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        .stats-panel {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+        #timer { color: var(--text-info); }
+        #level-display { color: #ff0; }
+
+        #game-container {
+            border: 4px double #555;
+            padding: 15px;
+            background-color: #000;
+            min-width: 300px;
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            gap: 4px;
+            margin: 0 auto 20px auto;
+            justify-content: center;
+        }
+        .cell {
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 1px solid #333;
+            user-select: none;
+            background: #111;
+            font-weight: bold;
+        }
+        .cell:hover { background-color: #444; }
+        
+        #message-area {
+            height: 50px;
+            color: var(--text-sub);
+            margin-bottom: 10px;
+        }
+
+        /* ランキングエリア */
+        .ranking-container {
+            margin-top: 20px;
+            border-top: 1px solid #444;
+            padding-top: 10px;
+            width: 300px;
+        }
+        .ranking-title { color: #fff; text-decoration: underline; margin-bottom: 5px; }
+        .ranking-list { font-size: 0.9rem; color: #aaa; text-align: left; }
+        
+        button {
+            background: #222; color: #fff; border: 1px solid #fff;
+            padding: 8px 16px; cursor: pointer; margin: 5px;
+        }
+        button:hover { background: #444; }
+    </style>
+</head>
+<body>
+
+    <div class="stats-panel">
+        <div id="level-display">LEVEL: 1</div>
+        <div id="timer">TIME: 0.000s</div>
+    </div>
+    
+    <div id="game-container">
+        <div id="grid" class="grid"></div>
+        <div id="message-area">umaをさがせ！</div>
+        <button id="next-btn" style="display:none;" onclick="startNextLevel()">つぎのレベルへ</button>
+        <button onclick="resetGame()">最初からリセット</button>
+    </div>
+
+    <div class="ranking-container">
+        <div class="ranking-title">🏆 BEST RECORDS (Local)</div>
+        <div id="ranking-list" class="ranking-list"></div>
+    </div>
+
+    <script>
+        let currentLevel = 1;
+        let startTime;
+        let isGameOver = false;
+        let timerInterval;
+        const UMA_DAD = ["U", "M", "A"];
+        const UMA_SON = "u";
+
+        // 初期化
+        function initGame() {
+            isGameOver = false;
+            document.getElementById('next-btn').style.display = 'none';
+            document.getElementById('level-display').innerText = `LEVEL: ${currentLevel}`;
+            
+            const size = 4 + currentLevel; // レベル1で5x5, レベル2で6x6...
+            setupGrid(size);
+            
+            startTime = Date.now();
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 50);
+            
+            displayRanking();
+        }
+
+        function setupGrid(size) {
+            const gridElement = document.getElementById('grid');
+            gridElement.style.gridTemplateColumns = `repeat(${size}, 35px)`;
+            gridElement.innerHTML = '';
+
+            const totalCells = size * size;
+            const targetIndex = Math.floor(Math.random() * totalCells);
+
+            for (let i = 0; i < totalCells; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                if (i === targetIndex) {
+                    cell.innerText = UMA_SON;
+                    cell.onclick = () => win();
+                } else {
+                    cell.innerText = UMA_DAD[Math.floor(Math.random() * UMA_DAD.length)];
+                    cell.onclick = () => miss();
+                }
+                gridElement.appendChild(cell);
+            }
+        }
+
+        function updateTimer() {
+            if (!isGameOver) {
+                const diff = (Date.now() - startTime) / 1000;
+                document.getElementById('timer').innerText = `TIME: ${diff.toFixed(3)}s`;
+            }
+        }
+
+        function win() {
+            if (isGameOver) return;
+            isGameOver = true;
+            clearInterval(timerInterval);
+            
+            const finalTime = (Date.now() - startTime) / 1000;
+            const msg = document.getElementById('message-area');
+            msg.innerHTML = `<span style="color:#0f0">LEVEL ${currentLevel} CLEAR!</span><br>uma < ヒヒーン！`;
+            
+            saveRecord(currentLevel, finalTime);
+            document.getElementById('next-btn').style.display = 'inline-block';
+            displayRanking();
+        }
+
+        function miss() {
+            if (isGameOver) return;
+            const msg = document.getElementById('message-area');
+            msg.innerText = "UMA < ブルッブルッ！ (ここにはいないぞ)";
+            setTimeout(() => {
+                if (!isGameOver) msg.innerText = "umaをさがせ！";
+            }, 1000);
+        }
+
+        function startNextLevel() {
+            currentLevel++;
+            initGame();
+        }
+
+        function resetGame() {
+            currentLevel = 1;
+            initGame();
+        }
+
+        // --- ランキング機能 (localStorage) ---
+        function saveRecord(level, time) {
+            let records = JSON.parse(localStorage.getItem('uma_records') || '{}');
+            if (!records[level] || time < records[level]) {
+                records[level] = time;
+                localStorage.setItem('uma_records', JSON.stringify(records));
+            }
+        }
+
+        function displayRanking() {
+            const list = document.getElementById('ranking-list');
+            let records = JSON.parse(localStorage.getItem('uma_records') || '{}');
+            let html = "";
+            
+            // レベル1から10までのベスト記録を表示
+            for (let i = 1; i <= 10; i++) {
+                if (records[i]) {
+                    html += `Level ${i}: ${records[i].toFixed(3)}s<br>`;
+                }
+            }
+            list.innerHTML = html || "記録なし";
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
